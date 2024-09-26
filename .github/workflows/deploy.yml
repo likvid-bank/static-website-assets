@@ -1,0 +1,262 @@
+name: Deploy Resources
+
+on:
+  workflow_dispatch:
+    inputs:
+      bb-run:
+        description: "Building Block Run Object"
+        required: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    outputs:
+      bb_run_uuid: ${{ steps.variables.outputs.bb_run_uuid }}
+      base_url: ${{ steps.variables.outputs.base_url }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Received Building Block Run
+        run: |
+          echo "Received Run JSON: $(echo '${{ github.event.inputs.bb-run }}' | base64 --decode)"
+
+      # You can use the parsed values in subsequent steps
+      - name: Extract Variables
+        id: variables
+        run: |
+          bb_run_uuid=$(echo '${{ github.event.inputs.bb-run }}' | base64 --decode | jq -r .metadata.uuid)
+          base_url=$(echo '${{ github.event.inputs.bb-run }}' | base64 --decode | jq -r ._links.meshstackBaseUrl.href)
+          bucket_name=$(echo '${{ github.event.inputs.bb-run }}' | base64 --decode | jq -r '.spec.buildingBlock.spec.inputs[] | select(.key == "bucket_name") | .value')
+          admin_users=$(echo '${{ github.event.inputs.bb-run }}' | base64 --decode | jq -r '.spec.buildingBlock.spec.inputs[] | select(.key == "user_permissions") | .value[] | select(.roles[] == "admin") | .email' )
+          # Transform newlines into spaces
+          admin_users_space_separated=$(echo "$admin_users" | tr '\n' ' ')
+          # Optionally trim trailing spaces
+          usernames_space_separated=$(echo "$admin_users_space_separated" | sed 's/ *$//')
+          echo "bb_run_uuid=$bb_run_uuid" >> $GITHUB_OUTPUT
+          echo "base_url=$base_url" >> $GITHUB_OUTPUT
+          echo "bucket_name=$bucket_name" >> $GITHUB_OUTPUT
+          echo "admin_users=$usernames_space_separated" >> $GITHUB_OUTPUT
+
+      - name: Setup meshstack auth
+        id: setup-meshstack-auth
+        run: |
+          export CLIENT_ID="${{ vars.BUILDINGBLOCK_API_CLIENT_ID }}"
+          export KEY_SECRET="${{ secrets.BUILDINGBLOCK_API_KEY_SECRET }}"
+          export token=$(curl --fail -L -X POST "${{ steps.variables.outputs.base_url }}/api/login" \
+            -d "grant_type=client_credentials" \
+            -d "client_id=$CLIENT_ID" \
+            -d "client_secret=$KEY_SECRET" | jq -r .access_token)
+          echo "api_token=$token" >> $GITHUB_OUTPUT
+
+      - name: Register source
+        run: |
+          curl -X POST "${{ steps.variables.outputs.base_url }}/api/meshobjects/meshbuildingblockruns/${{ steps.variables.outputs.bb_run_uuid }}/status/source" \
+            -H 'Content-Type: application/vnd.meshcloud.api.meshbuildingblockrun.v1.hal+json' \
+            -H 'Accept: application/vnd.meshcloud.api.meshbuildingblockrun.v1.hal+json' \
+            -H "Authorization: Bearer ${{ steps.setup-meshstack-auth.outputs.api_token }}" \
+            -d '{
+            "source": {
+              "id": "github",
+              "externalRunId": "${{ github.run_id }}",
+              "externalRunUrl": "https://github.com/meshcloud/static-website-assets/actions/runs/${{ github.run_id }}"
+            },
+            "steps": [
+              {
+                "id": "create-bucket-stack",
+                "displayName": "Create bucket"
+              },
+              {
+                "id": "grant-access-to-bucket",
+                "displayName": "Grant access to bucket"
+              }
+            ]
+            }'
+
+      - name: Setup aws auth
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: eu-central-1
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      - name: Create bucket stack
+        id: create-bucket-stack
+        uses: aws-actions/aws-cloudformation-github-deploy@v1
+        with:
+          name: "s3-${{ steps.variables.outputs.bucket_name }}"
+          template: cloudformation-s3-static-website.yml
+          parameter-overrides: "BucketName=m25-${{ steps.variables.outputs.bucket_name }}"
+          no-fail-on-empty-changeset: true
+
+      - name: Send status on success
+        if: ${{ steps.create-bucket-stack.outcome == 'success' }}
+        run: |
+          curl --fail -X PATCH "${{ steps.variables.outputs.base_url }}/api/meshobjects/meshbuildingblockruns/${{ steps.variables.outputs.bb_run_uuid }}/status/source/github" \
+            -H 'Content-Type: application/vnd.meshcloud.api.meshbuildingblockrun.v1.hal+json' \
+            -H 'Accept: application/vnd.meshcloud.api.meshbuildingblockrun.v1.hal+json' \
+            -H "Authorization: Bearer ${{ steps.setup-meshstack-auth.outputs.api_token }}" \
+            -d '{
+                  "status": "RUNNING",
+                  "steps": [{
+                    "id": "create-bucket-stack",
+                    "status": "SUCCESS"
+                  }]
+                }'
+
+      - name: Send status on failure
+        if: ${{ steps.create-bucket-stack.outcome == 'failure' }}
+        run: |
+          curl --fail -X PATCH "${{ steps.variables.outputs.base_url }}/api/meshobjects/meshbuildingblockruns/${{ steps.variables.outputs.bb_run_uuid }}/status/source/github" \
+            -H 'Content-Type: application/vnd.meshcloud.api.meshbuildingblockrun.v1.hal+json' \
+            -H 'Accept: application/vnd.meshcloud.api.meshbuildingblockrun.v1.hal+json' \
+            -H "Authorization: Bearer ${{ steps.setup-meshstack-auth.outputs.api_token }}" \
+            -d '{
+                  "status": "RUNNING",
+                  "steps": [{
+                    "id": "create-bucket-stack",
+                    "status": "FAILED",
+                    "userMessage": "Failed to create bucket stack.",
+                    "systemMessage": "Failed to create bucket stack, please check the GitHub actions log for more details."
+                  }]
+                }'
+
+      - name: Setup aws auth for granting access
+        id: setup-aws-auth-for-granting-access
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: eu-central-1
+          role-to-assume: arn:aws:iam::702461728527:role/github-action-role
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      - name: Grant Access to bucket
+        id: grant-access-to-bucket
+        run: |
+          set -o errexit
+          set -o errtrace
+          set -o pipefail
+          set -o nounset
+
+          # Store the truncated bucket name (limit to 19 characters to not exceed the 32 limit)
+          PERMISSION_SET_NAME=$(echo "${{ steps.variables.outputs.bucket_name }}" | cut -c1-19)
+
+          # Ensure the final name is no longer than 32 characters
+          FINAL_PERMISSION_SET_NAME="AccessBucket-$PERMISSION_SET_NAME"
+
+          AWS_PERMISSION_SET_ARN=$(aws sso-admin create-permission-set \
+            --instance-arn ${{ vars.SSO_INSTANCE_ARN }} \
+            --name "$FINAL_PERMISSION_SET_NAME" | jq -r '.PermissionSet.PermissionSetArn' )
+
+          aws sso-admin put-inline-policy-to-permission-set \
+            --instance-arn ${{ vars.SSO_INSTANCE_ARN }} \
+            --permission-set-arn $AWS_PERMISSION_SET_ARN \
+            --inline-policy '{
+                "Version": "2012-10-17",
+                "Statement": [
+                    {
+                        "Sid": "AccessBucket",
+                        "Effect": "Allow",
+                        "Action": [
+                            "s3:*"
+                        ],
+                        "Resource": [
+                            "arn:aws:s3:::m25-${{ steps.variables.outputs.bucket_name }}",
+                            "arn:aws:s3:::m25-${{ steps.variables.outputs.bucket_name }}/*"
+                        ]
+                    }
+                ]
+            }'
+
+          echo "Found admin users: ${{ steps.variables.outputs.admin_users }}"
+
+          users="${{ steps.variables.outputs.admin_users }}"
+          for user in $users; do
+            echo "granting access for $user..."
+            user_principal_id=$(aws identitystore list-users --identity-store-id "${{ vars.IDENTITY_STORE_ID  }}" | jq -r --arg user "$user" '.Users[] | select(.UserName == $user) | .UserId')
+            if [ -n "$user_principal_id" ]; then
+                aws sso-admin create-account-assignment \
+                    --instance-arn "${{ vars.SSO_INSTANCE_ARN }}" \
+                    --target-id "${{ vars.AWS_ACCOUNT_ID }}" \
+                    --target-type AWS_ACCOUNT \
+                    --permission-set-arn "$AWS_PERMISSION_SET_ARN" \
+                    --principal-type USER \
+                    --principal-id "$user_principal_id"
+            else
+                echo "User $user not found in identity store."
+            fi
+          done
+
+      - name: Send status on success
+        if: ${{ steps.grant-access-to-bucket.outcome == 'success' }}
+        run: |
+          curl --fail -X PATCH "${{ steps.variables.outputs.base_url }}/api/meshobjects/meshbuildingblockruns/${{ steps.variables.outputs.bb_run_uuid }}/status/source/github" \
+            -H 'Content-Type: application/vnd.meshcloud.api.meshbuildingblockrun.v1.hal+json' \
+            -H 'Accept: application/vnd.meshcloud.api.meshbuildingblockrun.v1.hal+json' \
+            -H "Authorization: Bearer ${{ steps.setup-meshstack-auth.outputs.api_token }}" \
+            -d '{
+                  "status": "RUNNING",
+                  "summary": "Granting access to bucket...",
+                  "steps": [{
+                    "id": "grant-access-to-bucket",
+                    "status": "SUCCESS",
+                    "userMessage": "Step was successful.",
+                    "systemMessage": "Step was successful."
+                  }]
+                }'
+
+      - name: Display website URL and upload instructions
+        id: display-website-url-and-upload-instructions
+        run: |
+          echo "### You are almost there! 🚀
+
+          Login via [AWS SSO](https://meshcloud-dev.awsapps.com/start/#)
+          to AWS account **${{ vars.AWS_ACCOUNT_ID }}** and navigate to the [following link](https://eu-central-1.console.aws.amazon.com/s3/upload/${{ steps.get-output.outputs.bucket_name }})
+          to upload files to your S3 bucket (you can drag and drop an index.html file to test it)
+
+          For more details on the file structure, check out https://docs.aws.amazon.com/AmazonS3/latest/userguide/IndexDocumentSupport.html#IndexDocumentsandFolders
+
+          🚀 Once you upload your files, you can view your website at: ${{ steps.get-output.outputs.website_url }} 🚀" >> $GITHUB_STEP_SUMMARY
+
+
+  report-final-status:
+    runs-on: ubuntu-latest
+    if: always()
+    needs: deploy
+    steps:
+      # Seems like Github can not share API secrets between two jobs. So we need to call this again...
+      - name: Setup meshstack auth (again)
+        id: setup-meshstack-auth
+        run: |
+          export CLIENT_ID="${{ vars.BUILDINGBLOCK_API_CLIENT_ID }}"
+          export KEY_SECRET="${{ secrets.BUILDINGBLOCK_API_KEY_SECRET }}"
+          export token=$(curl --fail -L -X POST "${{ needs.deploy.outputs.base_url }}/api/login" \
+            -d "grant_type=client_credentials" \
+            -d "client_id=$CLIENT_ID" \
+            -d "client_secret=$KEY_SECRET" | jq -r .access_token)
+          echo "api_token=$token" >> $GITHUB_OUTPUT
+
+      - name: Send final status (success)
+        if: ${{ needs.deploy.result == 'success' }}
+        run: |
+          curl --fail -X PATCH "${{ needs.deploy.outputs.base_url }}/api/meshobjects/meshbuildingblockruns/${{ needs.deploy.outputs.bb_run_uuid }}/status/source/github" \
+            -H 'Content-Type: application/vnd.meshcloud.api.meshbuildingblockrun.v1.hal+json' \
+            -H 'Accept: application/vnd.meshcloud.api.meshbuildingblockrun.v1.hal+json' \
+            -H "Authorization: Bearer ${{ steps.setup-meshstack-auth.outputs.api_token }}" \
+            -d '{
+                  "status": "SUCCESS",
+                  "summary": "Bucket deployment successful",
+                  "steps": []
+                }'
+      - name: Send final status (failure)
+        if: ${{ needs.deploy.result == 'failure' }}
+        run: |
+          curl --fail -X PATCH "${{ needs.deploy.outputs.base_url }}/api/meshobjects/meshbuildingblockruns/${{ needs.deploy.outputs.bb_run_uuid }}/status/source/github" \
+            -H 'Content-Type: application/vnd.meshcloud.api.meshbuildingblockrun.v1.hal+json' \
+            -H 'Accept: application/vnd.meshcloud.api.meshbuildingblockrun.v1.hal+json' \
+            -H "Authorization: Bearer ${{ steps.setup-meshstack-auth.outputs.api_token }}" \
+            -d '{
+                  "status": "FAILED",
+                  "summary": "Bucket deployment failed",
+                  "steps": []
+                }'

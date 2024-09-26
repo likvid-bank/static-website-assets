@@ -1,0 +1,106 @@
+name: Destroy Resources
+
+on:
+  workflow_dispatch:
+    inputs:
+      bb-run:
+        description: "Building Block Run Object"
+        required: true
+
+jobs:
+  destroy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Received Building Block Run
+        run: |
+          echo "Received Run JSON: $(echo '${{ github.event.inputs.bb-run }}' | base64 --decode)"
+
+      # You can use the parsed values in subsequent steps
+      - name: Extract Variables
+        id: variables
+        run: |
+          bb_run_uuid=$(echo '${{ github.event.inputs.bb-run }}' | base64 --decode | jq -r .metadata.uuid)
+          base_url=$(echo '${{ github.event.inputs.bb-run }}' | base64 --decode | jq -r ._links.meshstackBaseUrl.href)
+          bucket_name=$(echo '${{ github.event.inputs.bb-run }}' | base64 --decode | jq -r '.spec.buildingBlock.spec.inputs[] | select(.key == "bucket_name") | .value')
+          echo "bb_run_uuid=$bb_run_uuid" >> $GITHUB_OUTPUT
+          echo "base_url=$base_url" >> $GITHUB_OUTPUT
+          echo "bucket_name=$bucket_name" >> $GITHUB_OUTPUT
+
+      - name: Setup meshstack auth
+        id: setup-meshstack-auth
+        run: |
+          export CLIENT_ID="${{ vars.BUILDINGBLOCK_API_CLIENT_ID }}"
+          export KEY_SECRET="${{ secrets.BUILDINGBLOCK_API_KEY_SECRET }}"
+          export token=$(curl --fail -L -X POST "${{ steps.variables.outputs.base_url }}/api/login" \
+            -d "grant_type=client_credentials" \
+            -d "client_id=$CLIENT_ID" \
+            -d "client_secret=$KEY_SECRET" | jq -r .access_token)
+          echo "api_token=$token" >> $GITHUB_OUTPUT
+
+      - name: Register source
+        run: |
+          curl -X POST "${{ steps.variables.outputs.base_url }}/api/meshobjects/meshbuildingblockruns/${{ steps.variables.outputs.bb_run_uuid }}/status/source" \
+            -H 'Content-Type: application/vnd.meshcloud.api.meshbuildingblockrun.v1.hal+json' \
+            -H 'Accept: application/vnd.meshcloud.api.meshbuildingblockrun.v1.hal+json' \
+            -H "Authorization: Bearer ${{ steps.setup-meshstack-auth.outputs.api_token }}" \
+            -d '{
+            "source": {
+              "id": "github",
+              "externalRunId": "${{ github.run_id }}",
+              "externalRunUrl": "https://github.com/meshcloud/static-website-assets/actions/runs/${{ github.run_id }}"
+            },
+            "steps": [
+              {
+                "id": "delete-bucket-stack",
+                "displayName": "Delete bucket"
+              }
+            ]
+            }'
+
+      - name: Setup aws auth
+        uses: aws-actions/configure-aws-credentials@v4
+        continue-on-error: true
+        with:
+          aws-region: eu-central-1
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      - name: Delete bucket stack
+        id: delete-bucket
+        continue-on-error: true
+        run: aws cloudformation delete-stack --stack-name "s3-${{ steps.variables.outputs.bucket_name }}"
+
+      - name: Send status on success
+        if: ${{ steps.delete-bucket.outcome == 'success' }}
+        run: |
+          curl --fail -X PATCH "${{ steps.variables.outputs.base_url }}/api/meshobjects/meshbuildingblockruns/${{ steps.variables.outputs.bb_run_uuid }}/status/source/github" \
+            -H 'Content-Type: application/vnd.meshcloud.api.meshbuildingblockrun.v1.hal+json' \
+            -H 'Accept: application/vnd.meshcloud.api.meshbuildingblockrun.v1.hal+json' \
+            -H "Authorization: Bearer ${{ steps.setup-meshstack-auth.outputs.api_token }}" \
+            -d '{
+                  "status": "SUCCESS",
+                  "steps": [{
+                    "id": "delete-bucket-stack",
+                    "status": "SUCCESS"
+                  }]
+                }'
+
+      - name: Send status on failure
+        if: ${{ steps.delete-bucket.outcome == 'failure' }}
+        run: |
+          curl --fail -X PATCH "${{ steps.variables.outputs.base_url }}/api/meshobjects/meshbuildingblockruns/${{ steps.variables.outputs.bb_run_uuid }}/status/source/github" \
+            -H 'Content-Type: application/vnd.meshcloud.api.meshbuildingblockrun.v1.hal+json' \
+            -H 'Accept: application/vnd.meshcloud.api.meshbuildingblockrun.v1.hal+json' \
+            -H "Authorization: Bearer ${{ steps.setup-meshstack-auth.outputs.api_token }}" \
+            -d '{
+                  "status": "FAILED",
+                  "steps": [{
+                    "id": "delete-bucket-stack",
+                    "status": "FAILED",
+                    "userMessage": "Failed to delete bucket stack.",
+                    "systemMessage": "Failed to create bucket stack, please check the GitHub actions log for more details."
+                  }]
+                }'
