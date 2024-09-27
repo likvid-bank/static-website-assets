@@ -81,10 +81,10 @@ jobs:
             -H 'Accept: application/vnd.meshcloud.api.meshbuildingblockrun.v1.hal+json' \
             -H "Authorization: Bearer ${{ steps.setup-meshstack-auth.outputs.api_token }}" \
             -d '{
-                  "status": "SUCCESS",
+                  "status": "SUCCEEDED",
                   "steps": [{
                     "id": "delete-bucket-stack",
-                    "status": "SUCCESS"
+                    "status": "SUCCEEDED"
                   }]
                 }'
 

@@ -31,7 +31,9 @@ resource "aws_iam_policy" "cloudformation_policy" {
           "cloudformation:DeleteStack",
           "cloudformation:DescribeStacks",
           "cloudformation:CreateChangeSet",
-          "cloudformation:DescribeChangeSet"
+          "cloudformation:DescribeChangeSet",
+          "cloudformation:DeleteChangeSet"
+
         ],
         Resource = "*"
       }

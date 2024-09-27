@@ -100,7 +100,7 @@ jobs:
                   "status": "RUNNING",
                   "steps": [{
                     "id": "create-bucket-stack",
-                    "status": "SUCCESS"
+                    "status": "SUCCEEDED"
                   }]
                 }'
 
@@ -199,7 +199,7 @@ jobs:
                   "summary": "Granting access to bucket...",
                   "steps": [{
                     "id": "grant-access-to-bucket",
-                    "status": "SUCCESS",
+                    "status": "SUCCEEDED",
                     "userMessage": "Step was successful.",
                     "systemMessage": "Step was successful."
                   }]
@@ -244,7 +244,7 @@ jobs:
             -H 'Accept: application/vnd.meshcloud.api.meshbuildingblockrun.v1.hal+json' \
             -H "Authorization: Bearer ${{ steps.setup-meshstack-auth.outputs.api_token }}" \
             -d '{
-                  "status": "SUCCESS",
+                  "status": "SUCCEEDED"
                   "summary": "Bucket deployment successful",
                   "steps": []
                 }'
