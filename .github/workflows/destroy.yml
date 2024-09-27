@@ -50,7 +50,7 @@ jobs:
             "source": {
               "id": "github",
               "externalRunId": "${{ github.run_id }}",
-              "externalRunUrl": "https://github.com/meshcloud/static-website-assets/actions/runs/${{ github.run_id }}"
+              "externalRunUrl": "https://github.com/likvid-bank/static-website-assets/actions/runs/${{ github.run_id }}"
             },
             "steps": [
               {

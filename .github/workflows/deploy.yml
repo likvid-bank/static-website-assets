@@ -59,7 +59,7 @@ jobs:
             "source": {
               "id": "github",
               "externalRunId": "${{ github.run_id }}",
-              "externalRunUrl": "https://github.com/meshcloud/static-website-assets/actions/runs/${{ github.run_id }}"
+              "externalRunUrl": "https://github.com/likvid-bank/static-website-assets/actions/runs/${{ github.run_id }}"
             },
             "steps": [
               {
@@ -97,7 +97,7 @@ jobs:
             -H 'Accept: application/vnd.meshcloud.api.meshbuildingblockrun.v1.hal+json' \
             -H "Authorization: Bearer ${{ steps.setup-meshstack-auth.outputs.api_token }}" \
             -d '{
-                  "status": "RUNNING",
+                  "status": "IN_PROGRESS",
                   "steps": [{
                     "id": "create-bucket-stack",
                     "status": "SUCCEEDED"
@@ -112,7 +112,7 @@ jobs:
             -H 'Accept: application/vnd.meshcloud.api.meshbuildingblockrun.v1.hal+json' \
             -H "Authorization: Bearer ${{ steps.setup-meshstack-auth.outputs.api_token }}" \
             -d '{
-                  "status": "RUNNING",
+                  "status": "IN_PROGRESS",
                   "steps": [{
                     "id": "create-bucket-stack",
                     "status": "FAILED",
@@ -126,7 +126,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region: eu-central-1
-          role-to-assume: arn:aws:iam::702461728527:role/github-action-role
+          role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME }} 
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
@@ -195,7 +195,7 @@ jobs:
             -H 'Accept: application/vnd.meshcloud.api.meshbuildingblockrun.v1.hal+json' \
             -H "Authorization: Bearer ${{ steps.setup-meshstack-auth.outputs.api_token }}" \
             -d '{
-                  "status": "RUNNING",
+                  "status": "IN_PROGRESS",
                   "summary": "Granting access to bucket...",
                   "steps": [{
                     "id": "grant-access-to-bucket",
@@ -239,12 +239,12 @@ jobs:
       - name: Send final status (success)
         if: ${{ needs.deploy.result == 'success' }}
         run: |
-          curl --fail -X PATCH "${{ needs.deploy.outputs.base_url }}/api/meshobjects/meshbuildingblockruns/${{ needs.deploy.outputs.bb_run_uuid }}/status/source/github" \
+           curl --fail -X PATCH "${{ needs.deploy.outputs.base_url }}/api/meshobjects/meshbuildingblockruns/${{ needs.deploy.outputs.bb_run_uuid }}/status/source/github" \
             -H 'Content-Type: application/vnd.meshcloud.api.meshbuildingblockrun.v1.hal+json' \
             -H 'Accept: application/vnd.meshcloud.api.meshbuildingblockrun.v1.hal+json' \
             -H "Authorization: Bearer ${{ steps.setup-meshstack-auth.outputs.api_token }}" \
             -d '{
-                  "status": "SUCCEEDED"
+                  "status": "SUCCEEDED",
                   "summary": "Bucket deployment successful",
                   "steps": []
                 }'
@@ -253,7 +253,7 @@ jobs:
         run: |
           curl --fail -X PATCH "${{ needs.deploy.outputs.base_url }}/api/meshobjects/meshbuildingblockruns/${{ needs.deploy.outputs.bb_run_uuid }}/status/source/github" \
             -H 'Content-Type: application/vnd.meshcloud.api.meshbuildingblockrun.v1.hal+json' \
-            -H 'Accept: application/vnd.meshcloud.api.meshbuildingblockrun.v1.hal+json' \
+          -H 'Accept: application/vnd.meshcloud.api.meshbuildingblockrun.v1.hal+json' \
             -H "Authorization: Bearer ${{ steps.setup-meshstack-auth.outputs.api_token }}" \
             -d '{
                   "status": "FAILED",
