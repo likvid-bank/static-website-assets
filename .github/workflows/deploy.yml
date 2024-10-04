@@ -121,6 +121,23 @@ jobs:
                   }]
                 }'
 
+      - name: Get Stack output
+        if: ${{ steps.create-bucket-stack.outcome == 'success' }}
+        id: get-output
+        run: |
+          sleep 5
+          BUCKET_NAME=$(aws cloudformation describe-stacks \
+            --stack-name "s3-${{ steps.variables.outputs.bucket_name }}" \
+            --query "Stacks[0].Outputs[?OutputKey=='BucketName'].OutputValue" \
+            --output text)
+          WEBSITE_URL=$(aws cloudformation describe-stacks \
+            --stack-name "s3-${{ steps.variables.outputs.bucket_name }}" \
+            --query "Stacks[0].Outputs[?OutputKey=='WebsiteURL'].OutputValue" \
+            --output text)
+
+          echo "bucket_name=$BUCKET_NAME" >> $GITHUB_OUTPUT
+          echo "website_url=$WEBSITE_URL" >> $GITHUB_OUTPUT
+
       - name: Setup aws auth for granting access
         id: setup-aws-auth-for-granting-access
         uses: aws-actions/configure-aws-credentials@v4
@@ -205,13 +222,14 @@ jobs:
                   }]
                 }'
 
+     
       - name: Display website URL and upload instructions
         id: display-website-url-and-upload-instructions
         run: |
           echo "### You are almost there! 🚀
 
           Login via [AWS SSO](https://meshcloud-dev.awsapps.com/start/#)
-          to AWS account **${{ vars.AWS_ACCOUNT_ID }}** and navigate to the [following link](https://eu-central-1.console.aws.amazon.com/s3/upload/${{ steps.get-output.outputs.bucket_name }})
+          to AWS account **${{ vars.AWS_ACCOUNT_ID }}** and navigate to the [following link](https://eu-central-1.console.aws.amazon.com/s3/upload/${{ steps.get-outputs.outputs.bucket_name }})
           to upload files to your S3 bucket (you can drag and drop an index.html file to test it)
 
           For more details on the file structure, check out https://docs.aws.amazon.com/AmazonS3/latest/userguide/IndexDocumentSupport.html#IndexDocumentsandFolders
