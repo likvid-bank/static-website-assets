@@ -4,7 +4,7 @@ on:
     paths:
       - "buckets/**"
     branches:
-      - "feature/deploy-git"
+      - "main"
 
 env:
   # from meshcloud-dev AWS root account SSO settings
@@ -12,7 +12,7 @@ env:
   ACCOUNT_ID: "060795938541"
 
 jobs:
-  deploy:
+  deploy_website:
     runs-on: ubuntu-latest
     permissions: 
       id-token: write
@@ -130,7 +130,7 @@ jobs:
           echo "### You are almost there! 🚀
 
           Login via [AWS SSO](https://meshcloud-dev.awsapps.com/start/#)
-          to AWS account **590183851528** and navigate to the [following link](https://eu-central-1.console.aws.amazon.com/s3/upload/${{ steps.get-output.outputs.bucket_name }}) 
+          to AWS account **060795938541** and navigate to the [following link](https://eu-central-1.console.aws.amazon.com/s3/upload/${{ steps.get-output.outputs.bucket_name }}) 
           to upload files to your S3 bucket (you can drag and drop an index.html file to test it)
 
           For more details on the file structure, check out https://docs.aws.amazon.com/AmazonS3/latest/userguide/IndexDocumentSupport.html#IndexDocumentsandFolders
