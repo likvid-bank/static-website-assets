@@ -1,0 +1,138 @@
+name: Deploy Website
+on:
+  push:
+    paths:
+      - "buckets/**"
+    branches:
+      - "main"
+
+env:
+  # from meshcloud-dev AWS root account SSO settings
+  SSO_INSTANCE_ARN: arn:aws:sso:::instance/ssoins-69873586782ebb40
+  ACCOUNT_ID: "060795938541"
+
+jobs:
+  deploy_website:
+    runs-on: ubuntu-latest
+    permissions: 
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Setup aws auth
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: eu-central-1
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      - name: Detect changed files
+        id: changes
+        run: |
+          added=$(git diff --name-only --diff-filter=A ${{ github.event.before }} ${{ github.sha }} | grep '^buckets/' || echo '')
+          removed=$(git diff --name-only --diff-filter=D ${{ github.event.before }} ${{ github.sha }} | grep '^buckets/' || echo '')
+          echo "added=$(basename "$added")" >> $GITHUB_OUTPUT
+          echo "removed=$(basename "$removed")" >> $GITHUB_OUTPUT
+
+      - name: Create bucket stack
+        if: ${{ steps.changes.outputs.added != '' }}
+        uses: aws-actions/aws-cloudformation-github-deploy@v1
+        with:
+          name: "s3-${{ steps.changes.outputs.added }}"
+          template: cloudformation-s3-static-website.yml
+          parameter-overrides: "BucketName=m25-${{ steps.changes.outputs.added }}"
+
+      - name: Delete bucket stack
+        if: ${{ steps.changes.outputs.removed != '' }}
+        run: aws cloudformation delete-stack --stack-name "s3-${{ steps.changes.outputs.removed }}"
+
+      - name: Get Stack output
+        if: ${{ steps.changes.outputs.added != '' }}
+        id: get-output
+        run: |
+          BUCKET_NAME=$(aws cloudformation describe-stacks \
+            --stack-name "s3-${{ steps.changes.outputs.added }}" \
+            --query "Stacks[0].Outputs[?OutputKey=='BucketName'].OutputValue" \
+            --output text)
+          WEBSITE_URL=$(aws cloudformation describe-stacks \
+            --stack-name "s3-${{ steps.changes.outputs.added }}" \
+            --query "Stacks[0].Outputs[?OutputKey=='WebsiteURL'].OutputValue" \
+            --output text)
+
+          echo "bucket_name=$BUCKET_NAME" >> $GITHUB_OUTPUT
+          echo "website_url=$WEBSITE_URL" >> $GITHUB_OUTPUT
+
+      - name: Setup aws auth for granting access
+        if: ${{ steps.changes.outputs.added != '' }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: eu-central-1
+          role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      - name: Grant Access to bucket
+        if: ${{ steps.changes.outputs.added != '' }}
+        run: |
+          set -o errexit
+          set -o errtrace
+          set -o pipefail
+          set -o nounset
+          
+          AWS_PERMISSION_SET_ARN=$(aws sso-admin create-permission-set \
+            --instance-arn ${{ env.SSO_INSTANCE_ARN }} \
+            --name "AccessBucket-${{ steps.changes.outputs.added }}" | jq -r '.PermissionSet.PermissionSetArn' )
+
+          aws sso-admin put-inline-policy-to-permission-set \
+            --instance-arn ${{ env.SSO_INSTANCE_ARN }} \
+            --permission-set-arn $AWS_PERMISSION_SET_ARN \
+            --inline-policy '{
+                "Version": "2012-10-17",
+                "Statement": [
+                    {
+                        "Sid": "AccessBucket",
+                        "Effect": "Allow",
+                        "Action": [
+                            "s3:*"
+                        ],
+                        "Resource": [
+                            "arn:aws:s3:::m25-${{ steps.changes.outputs.added }}",
+                            "arn:aws:s3:::m25-${{ steps.changes.outputs.added }}/*"
+                        ]
+                    }
+                ]
+            }'
+          
+          IDENTITY_STORE_ID="d-99672cb5d3"
+          users=$(cat "buckets/${{ steps.changes.outputs.added }}")
+          for user in $users; do
+            echo "granting access for $user..."
+            user_principal_id=$(aws identitystore list-users --identity-store-id "$IDENTITY_STORE_ID" | jq -r --arg user "$user" '.Users[] | select(.UserName == $user) | .UserId')
+            if [ -n "$user_principal_id" ]; then
+                aws sso-admin create-account-assignment \
+                    --instance-arn "$SSO_INSTANCE_ARN" \
+                    --target-id "$ACCOUNT_ID" \
+                    --target-type AWS_ACCOUNT \
+                    --permission-set-arn "$AWS_PERMISSION_SET_ARN" \
+                    --principal-type USER \
+                    --principal-id "$user_principal_id"
+            else
+                echo "User $user not found in identity store."
+            fi
+          done
+
+      - name: Display website URL and upload instructions
+        if: ${{ steps.changes.outputs.added != '' }}
+        run: |
+          echo "### You are almost there! 🚀
+
+          Login via [AWS SSO](https://meshcloud-dev.awsapps.com/start/#)
+          to AWS account **060795938541** and navigate to the [following link](https://eu-central-1.console.aws.amazon.com/s3/upload/${{ steps.get-output.outputs.bucket_name }}) 
+          to upload files to your S3 bucket (you can drag and drop an index.html file to test it)
+
+          For more details on the file structure, check out https://docs.aws.amazon.com/AmazonS3/latest/userguide/IndexDocumentSupport.html#IndexDocumentsandFolders
+
+          🚀 Once you upload your files, you can view your website at: ${{ steps.get-output.outputs.website_url }} 🚀" >> $GITHUB_STEP_SUMMARY
