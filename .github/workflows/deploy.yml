@@ -51,7 +51,7 @@ jobs:
 
       - name: Register source
         run: |
-          curl -X POST "${{ steps.variables.outputs.base_url }}/api/meshobjects/meshbuildingblockruns/${{ steps.variables.outputs.bb_run_uuid }}/status/source" \
+          curl -s -S --fail -X POST "${{ steps.variables.outputs.base_url }}/api/meshobjects/meshbuildingblockruns/${{ steps.variables.outputs.bb_run_uuid }}/status/source" \
             -H 'Content-Type: application/vnd.meshcloud.api.meshbuildingblockrun.v1.hal+json' \
             -H 'Accept: application/vnd.meshcloud.api.meshbuildingblockrun.v1.hal+json' \
             -H "Authorization: Bearer ${{ steps.setup-meshstack-auth.outputs.api_token }}" \
@@ -64,11 +64,11 @@ jobs:
             "steps": [
               {
                 "id": "create-bucket-stack",
-                "displayName": "Create bucket"
+                "displayName": "Create Bucket"
               },
               {
                 "id": "grant-access-to-bucket",
-                "displayName": "Grant access to bucket"
+                "displayName": "Grant Access to Bucket"
               }
             ]
             }'
@@ -87,12 +87,12 @@ jobs:
           name: "s3-${{ steps.variables.outputs.bucket_name }}"
           template: cloudformation-s3-static-website.yml
           parameter-overrides: "BucketName=m25-${{ steps.variables.outputs.bucket_name }}"
-          no-fail-on-empty-changeset: true
+          no-fail-on-empty-changeset: "1"
 
       - name: Send status on success
         if: ${{ steps.create-bucket-stack.outcome == 'success' }}
         run: |
-          curl --fail -X PATCH "${{ steps.variables.outputs.base_url }}/api/meshobjects/meshbuildingblockruns/${{ steps.variables.outputs.bb_run_uuid }}/status/source/github" \
+          curl -s -S --fail -X PATCH "${{ steps.variables.outputs.base_url }}/api/meshobjects/meshbuildingblockruns/${{ steps.variables.outputs.bb_run_uuid }}/status/source/github" \
             -H 'Content-Type: application/vnd.meshcloud.api.meshbuildingblockrun.v1.hal+json' \
             -H 'Accept: application/vnd.meshcloud.api.meshbuildingblockrun.v1.hal+json' \
             -H "Authorization: Bearer ${{ steps.setup-meshstack-auth.outputs.api_token }}" \
@@ -107,7 +107,7 @@ jobs:
       - name: Send status on failure
         if: ${{ steps.create-bucket-stack.outcome == 'failure' }}
         run: |
-          curl --fail -X PATCH "${{ steps.variables.outputs.base_url }}/api/meshobjects/meshbuildingblockruns/${{ steps.variables.outputs.bb_run_uuid }}/status/source/github" \
+          curl -s -S --fail -X PATCH "${{ steps.variables.outputs.base_url }}/api/meshobjects/meshbuildingblockruns/${{ steps.variables.outputs.bb_run_uuid }}/status/source/github" \
             -H 'Content-Type: application/vnd.meshcloud.api.meshbuildingblockrun.v1.hal+json' \
             -H 'Accept: application/vnd.meshcloud.api.meshbuildingblockrun.v1.hal+json' \
             -H "Authorization: Bearer ${{ steps.setup-meshstack-auth.outputs.api_token }}" \
@@ -137,15 +137,12 @@ jobs:
           echo "bucket_name=$BUCKET_NAME" >> $GITHUB_OUTPUT
           echo "website_url=$WEBSITE_URL" >> $GITHUB_OUTPUT
 
-          echo "::set-output name=bucket_name::$BUCKET_NAME"
-          echo "::set-output name=website_url::$WEBSITE_URL"
-
       - name: Setup aws auth for granting access
         id: setup-aws-auth-for-granting-access
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region: eu-central-1
-          role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME }} 
+          role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME }}
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
@@ -163,9 +160,26 @@ jobs:
           # Ensure the final name is no longer than 32 characters
           FINAL_PERMISSION_SET_NAME="AccessBucket-$PERMISSION_SET_NAME"
 
-          AWS_PERMISSION_SET_ARN=$(aws sso-admin create-permission-set \
-            --instance-arn ${{ vars.SSO_INSTANCE_ARN }} \
-            --name "$FINAL_PERMISSION_SET_NAME" | jq -r '.PermissionSet.PermissionSetArn' )
+          # List all permission set ARNs (as an array; since ARNs have special chars)
+          PERMISSION_SETS=($(aws sso-admin list-permission-sets --instance-arn ${{ vars.SSO_INSTANCE_ARN }} --query 'PermissionSets' | jq -r 'join(" ")'))
+
+          FOUND="false"
+          # Loop through each permission set ARN to find the one with the matching name
+          for ARN in "${PERMISSION_SETS[@]}"; do
+            NAME=$(aws sso-admin describe-permission-set --instance-arn ${{ vars.SSO_INSTANCE_ARN }} --permission-set-arn "$ARN" --query 'PermissionSet.Name' --output text)
+            if [[ "$NAME" == "$FINAL_PERMISSION_SET_NAME" ]]; then
+              echo "Permission Set ARN for $FINAL_PERMISSION_SET_NAME: $ARN"
+              AWS_PERMISSION_SET_ARN="$ARN"
+              FOUND="true"
+              break
+            fi
+          done
+
+          if [[ "$FOUND" == "false" ]]; then
+            AWS_PERMISSION_SET_ARN=$(aws sso-admin create-permission-set \
+              --instance-arn ${{ vars.SSO_INSTANCE_ARN }} \
+              --name "$FINAL_PERMISSION_SET_NAME" | jq -r '.PermissionSet.PermissionSetArn' )
+          fi
 
           aws sso-admin put-inline-policy-to-permission-set \
             --instance-arn ${{ vars.SSO_INSTANCE_ARN }} \
@@ -209,7 +223,7 @@ jobs:
       - name: Send status on success
         if: ${{ steps.grant-access-to-bucket.outcome == 'success' }}
         run: |
-          curl --fail -X PATCH "${{ steps.variables.outputs.base_url }}/api/meshobjects/meshbuildingblockruns/${{ steps.variables.outputs.bb_run_uuid }}/status/source/github" \
+          curl -s -S --fail -X PATCH "${{ steps.variables.outputs.base_url }}/api/meshobjects/meshbuildingblockruns/${{ steps.variables.outputs.bb_run_uuid }}/status/source/github" \
             -H 'Content-Type: application/vnd.meshcloud.api.meshbuildingblockrun.v1.hal+json' \
             -H 'Accept: application/vnd.meshcloud.api.meshbuildingblockrun.v1.hal+json' \
             -H "Authorization: Bearer ${{ steps.setup-meshstack-auth.outputs.api_token }}" \
@@ -224,7 +238,6 @@ jobs:
                   }]
                 }'
 
-     
       - name: Display website URL and upload instructions
         id: display-website-url-and-upload-instructions
         run: |
@@ -259,24 +272,24 @@ jobs:
       - name: Send final status (success)
         if: ${{ needs.deploy.result == 'success' }}
         run: |
-           curl --fail -X PATCH "${{ needs.deploy.outputs.base_url }}/api/meshobjects/meshbuildingblockruns/${{ needs.deploy.outputs.bb_run_uuid }}/status/source/github" \
+          curl -s -S --fail -X PATCH "${{ needs.deploy.outputs.base_url }}/api/meshobjects/meshbuildingblockruns/${{ needs.deploy.outputs.bb_run_uuid }}/status/source/github" \
             -H 'Content-Type: application/vnd.meshcloud.api.meshbuildingblockrun.v1.hal+json' \
             -H 'Accept: application/vnd.meshcloud.api.meshbuildingblockrun.v1.hal+json' \
             -H "Authorization: Bearer ${{ steps.setup-meshstack-auth.outputs.api_token }}" \
             -d '{
                   "status": "SUCCEEDED",
-                  "summary": "Bucket deployment successful",
+                  "summary": "Bucket Deployment successful",
                   "steps": []
                 }'
       - name: Send final status (failure)
         if: ${{ needs.deploy.result == 'failure' }}
         run: |
-          curl --fail -X PATCH "${{ needs.deploy.outputs.base_url }}/api/meshobjects/meshbuildingblockruns/${{ needs.deploy.outputs.bb_run_uuid }}/status/source/github" \
+          curl -s -S --fail -X PATCH "${{ needs.deploy.outputs.base_url }}/api/meshobjects/meshbuildingblockruns/${{ needs.deploy.outputs.bb_run_uuid }}/status/source/github" \
             -H 'Content-Type: application/vnd.meshcloud.api.meshbuildingblockrun.v1.hal+json' \
-          -H 'Accept: application/vnd.meshcloud.api.meshbuildingblockrun.v1.hal+json' \
+            -H 'Accept: application/vnd.meshcloud.api.meshbuildingblockrun.v1.hal+json' \
             -H "Authorization: Bearer ${{ steps.setup-meshstack-auth.outputs.api_token }}" \
             -d '{
                   "status": "FAILED",
-                  "summary": "Bucket deployment failed",
+                  "summary": "Bucket Deployment failed",
                   "steps": []
                 }'
