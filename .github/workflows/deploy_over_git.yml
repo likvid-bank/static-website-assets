@@ -63,7 +63,7 @@ jobs:
               permission_set_name="AccessBucket-$bucket_name"
               
               # Try to create the permission set
-              AWS_PERMISSION_SET_ARN=$(aws sso-admin create-permission-set \
+              export AWS_PERMISSION_SET_ARN=$(aws sso-admin create-permission-set \
                 --instance-arn ${{ env.SSO_INSTANCE_ARN }} \
                 --name "$permission_set_name" | jq -r '.PermissionSet.PermissionSetArn' )
 
