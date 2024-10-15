@@ -98,6 +98,10 @@ jobs:
             for user in $users; do
               echo "Granting access for $user..."
               user_principal_id=$(aws identitystore list-users --identity-store-id "$IDENTITY_STORE_ID" | jq -r --arg user "$user" '.Users[] | select(.UserName == $user) | .UserId')
+              AWS_PERMISSION_SET_ARN=$(aws sso-admin create-permission-set \
+              --instance-arn ${{ env.SSO_INSTANCE_ARN }} \
+              --name "$permission_set_name" | jq -r '.PermissionSet.PermissionSetArn' )
+
               if [ -n "$user_principal_id" ]; then
                   aws sso-admin create-account-assignment \
                       --instance-arn "$SSO_INSTANCE_ARN" \
