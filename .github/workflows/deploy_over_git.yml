@@ -47,15 +47,6 @@ jobs:
           done
 
 
-      - name: Setup aws auth for granting access
-        if: ${{ steps.deploy.outcome == 'success' }}
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-region: eu-central-1
-          role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME }}
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-
       - name: Grant Access to buckets
         run: |
           set -o errexit
@@ -64,12 +55,12 @@ jobs:
           set -o nounset
 
           IDENTITY_STORE_ID="d-99672cb5d3"
-          buckets=$(yq e '.buckets | keys' buckets.yml)
-          for bucket in $buckets; do
-            echo "Granting access to bucket: $bucket"
+          bucket_names=$(yq e '.buckets | keys | join(" ")' buckets.yml)
+          for bucket_name in $bucket_names; do
+            echo "Granting access to bucket: $bucket_name"
             AWS_PERMISSION_SET_ARN=$(aws sso-admin create-permission-set \
               --instance-arn ${{ env.SSO_INSTANCE_ARN }} \
-              --name "AccessBucket-$bucket" | jq -r '.PermissionSet.PermissionSetArn' )
+              --name "AccessBucket-$bucket_name" | jq -r '.PermissionSet.PermissionSetArn' )
 
             aws sso-admin put-inline-policy-to-permission-set \
               --instance-arn ${{ env.SSO_INSTANCE_ARN }} \
@@ -84,14 +75,14 @@ jobs:
                               "s3:*"
                           ],
                           "Resource": [
-                              "arn:aws:s3:::m25-'$bucket'",
-                              "arn:aws:s3:::m25-'$bucket'/*"
+                              "arn:aws:s3:::m25-'$bucket_name'",
+                              "arn:aws:s3:::m25-'$bucket_name'/*"
                           ]
                       }
                   ]
               }'
 
-            users=$(yq e ".buckets.$bucket.users[]" buckets.yml)
+            users=$(yq e ".buckets.$bucket_name.users[]" buckets.yml)
             for user in $users; do
               echo "Granting access for $user..."
               user_principal_id=$(aws identitystore list-users --identity-store-id "$IDENTITY_STORE_ID" | jq -r --arg user "$user" '.Users[] | select(.UserName == $user) | .UserId')
