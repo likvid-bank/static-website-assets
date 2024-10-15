@@ -69,7 +69,6 @@ jobs:
 
               # Always get the ARN of the permission set
               AWS_PERMISSION_SET_ARN=$(aws sso-admin list-permission-sets --instance-arn ${{ env.SSO_INSTANCE_ARN }} | jq -r --arg name "$permission_set_name" '.PermissionSets[] | select(. == $name)')
-              fi
 
               aws sso-admin put-inline-policy-to-permission-set \
                 --instance-arn ${{ env.SSO_INSTANCE_ARN }} \
