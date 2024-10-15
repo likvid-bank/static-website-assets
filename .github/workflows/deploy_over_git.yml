@@ -56,65 +56,58 @@ jobs:
       
       - name: Grant Access to buckets
         run: |
-          IDENTITY_STORE_ID="d-99672cb5d3"
-          bucket_names=$(yq e '.buckets | keys | join(" ")' buckets.yml)
-          for bucket_name in $bucket_names; do
-            echo "Granting access to bucket: $bucket_name"
-            permission_set_name="AccessBucket-$bucket_name"
-            
-            # Try to create the permission set
-            AWS_PERMISSION_SET_ARN=$(aws sso-admin create-permission-set \
-              --instance-arn ${{ env.SSO_INSTANCE_ARN }} \
-              --name "$permission_set_name" | jq -r '.PermissionSet.PermissionSetArn' )
-            echo "AWS_PERMISSION_SET_ARN after create-permission-set: $AWS_PERMISSION_SET_ARN"
-
-            # If the permission set creation failed (because it already exists), get the existing permission set
-            if [ -z "$AWS_PERMISSION_SET_ARN" ]; then
-              AWS_PERMISSION_SET_ARN=$(aws sso-admin list-permission-sets --instance-arn ${{ env.SSO_INSTANCE_ARN }} | jq -r --arg name "$permission_set_name" '.PermissionSets[] | select(. == $name)')
-              echo "AWS_PERMISSION_SET_ARN after list-permission-sets: $AWS_PERMISSION_SET_ARN"
-            fi
-
-            aws sso-admin put-inline-policy-to-permission-set \
-              --instance-arn ${{ env.SSO_INSTANCE_ARN }} \
-              --permission-set-arn $AWS_PERMISSION_SET_ARN \
-              --inline-policy '{
-                  "Version": "2012-10-17",
-                  "Statement": [
-                      {
-                          "Sid": "AccessBucket",
-                          "Effect": "Allow",
-                          "Action": [
-                              "s3:*"
-                          ],
-                          "Resource": [
-                              "arn:aws:s3:::m25-'$bucket_name'",
-                              "arn:aws:s3:::m25-'$bucket_name'/*"
-                          ]
-                      }
-                  ]
-              }'
-
-            users=$(yq e ".buckets.$bucket_name.users[]" buckets.yml)
-            for user in $users; do
-              echo "Granting access for $user..."
-              user_principal_id=$(aws identitystore list-users --identity-store-id "$IDENTITY_STORE_ID" | jq -r --arg user "$user" '.Users[] | select(.UserName == $user) | .UserId')
+            IDENTITY_STORE_ID="d-99672cb5d3"
+            bucket_names=$(yq e '.buckets | keys | join(" ")' buckets.yml)
+            for bucket_name in $bucket_names; do
+              echo "Granting access to bucket: $bucket_name"
+              permission_set_name="AccessBucket-$bucket_name"
+              
+              # Try to create the permission set
               AWS_PERMISSION_SET_ARN=$(aws sso-admin create-permission-set \
-              --instance-arn ${{ env.SSO_INSTANCE_ARN }} \
-              --name "$permission_set_name" | jq -r '.PermissionSet.PermissionSetArn' )
+                --instance-arn ${{ env.SSO_INSTANCE_ARN }} \
+                --name "$permission_set_name" 2> /dev/null || true)
 
-              if [ -n "$user_principal_id" ]; then
-                  aws sso-admin create-account-assignment \
-                      --instance-arn "$SSO_INSTANCE_ARN" \
-                      --target-id "$ACCOUNT_ID" \
-                      --target-type AWS_ACCOUNT \
-                      --permission-set-arn "$AWS_PERMISSION_SET_ARN" \
-                      --principal-type USER \
-                      --principal-id "$user_principal_id"
-              else
-                  echo "User $user not found in identity store."
+              # Always get the ARN of the permission set
+      AWS_PERMISSION_SET_ARN=$(aws sso-admin list-permission-sets --instance-arn ${{ env.SSO_INSTANCE_ARN }} | jq -r --arg name "$permission_set_name" '.PermissionSets[] | select(. == $name)')
               fi
+
+              aws sso-admin put-inline-policy-to-permission-set \
+                --instance-arn ${{ env.SSO_INSTANCE_ARN }} \
+                --permission-set-arn $AWS_PERMISSION_SET_ARN \
+                --inline-policy '{
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Sid": "AccessBucket",
+                            "Effect": "Allow",
+                            "Action": [
+                                "s3:*"
+                            ],
+                            "Resource": [
+                                "arn:aws:s3:::m25-'$bucket_name'",
+                                "arn:aws:s3:::m25-'$bucket_name'/*"
+                            ]
+                        }
+                    ]
+                }'
+
+              users=$(yq e ".buckets.$bucket_name.users[]" buckets.yml)
+              for user in $users; do
+                echo "Granting access for $user..."
+                user_principal_id=$(aws identitystore list-users --identity-store-id "$IDENTITY_STORE_ID" | jq -r --arg user "$user" '.Users[] | select(.UserName == $user) | .UserId')
+                if [ -n "$user_principal_id" ]; then
+                    aws sso-admin create-account-assignment \
+                        --instance-arn "$SSO_INSTANCE_ARN" \
+                        --target-id "$ACCOUNT_ID" \
+                        --target-type AWS_ACCOUNT \
+                        --permission-set-arn "$AWS_PERMISSION_SET_ARN" \
+                        --principal-type USER \
+                        --principal-id "$user_principal_id"
+                else
+                    echo "User $user not found in identity store."
+                fi
+              done
             done
-          done
 
       - name: Display website URL and upload instructions
         if: ${{ steps.changes.outputs.added != '' }}
