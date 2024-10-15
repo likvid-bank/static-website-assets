@@ -1,8 +1,8 @@
 name: Deploy Website
 on:
   push:
-    paths:
-      - "buckets.yml"
+    #paths:
+    #  - "buckets.yml"
     branches:
       - "feature/yml-buckets"
 
