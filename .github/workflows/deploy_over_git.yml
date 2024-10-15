@@ -37,7 +37,7 @@ jobs:
       - name: Deploy buckets
         id: deploy
         run: |
-          bucket_names=$(yq e '.buckets | keys' buckets.yml)
+          bucket_names=$(yq e '.buckets | keys | join(" ")' buckets.yml)
           for bucket_name in $bucket_names; do
             echo "Deploying bucket: $bucket_name"
             aws cloudformation deploy \
