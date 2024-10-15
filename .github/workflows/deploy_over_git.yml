@@ -46,7 +46,15 @@ jobs:
               --parameter-overrides BucketName=m25-$bucket_name
           done
 
-
+      - name: Setup aws auth for granting access
+        if: ${{ steps.changes.outputs.added != '' }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: eu-central-1
+          role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      
       - name: Grant Access to buckets
         run: |
           set -o errexit
