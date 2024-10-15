@@ -53,41 +53,6 @@ jobs:
           role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME }}
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      
-      - name: Grant Access to buckets
-        run: |
-            IDENTITY_STORE_ID="d-99672cb5d3"
-            bucket_names=$(yq e '.buckets | keys | join(" ")' buckets.yml)
-            for bucket_name in $bucket_names; do
-              echo "Granting access to bucket: $bucket_name"
-              permission_set_name="AccessBucket-$bucket_name"
-              
-              # Try to create the permission set
-              export AWS_PERMISSION_SET_ARN=$(aws sso-admin create-permission-set \
-                --instance-arn ${{ env.SSO_INSTANCE_ARN }} \
-                --name "$permission_set_name" | jq -r '.PermissionSet.PermissionSetArn' )
-
-              aws sso-admin put-inline-policy-to-permission-set \
-                --instance-arn ${{ env.SSO_INSTANCE_ARN }} \
-                --permission-set-arn $AWS_PERMISSION_SET_ARN \
-                --inline-policy '{
-                      "Version": "2012-10-17",
-                      "Statement": [
-                          {
-                              "Sid": "AccessBucket",
-                              "Effect": "Allow",
-                              "Action": [
-                                  "s3:*"
-                              ],
-                              "Resource": [
-                                  "arn:aws:s3:::m25-'$bucket_name'",
-                                  "arn:aws:s3:::m25-'$bucket_name'/*"
-                              ]
-                          }
-                      ]
-                  }'
-
-              done
 
       - name: Display website URL and upload instructions
         if: ${{ steps.changes.outputs.added != '' }}

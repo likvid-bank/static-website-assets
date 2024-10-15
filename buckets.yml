@@ -7,8 +7,4 @@ buckets:
     users:
       - ckraus@meshcloud.io
       - fnowarre@meshcloud.io
-  superwebsitethree:
-    users:
-      - ckraus@meshcloud.io
-      - fnowarre@meshcloud.io
 
