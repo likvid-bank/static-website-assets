@@ -87,23 +87,7 @@ jobs:
                       ]
                   }'
 
-              users=$(yq e ".buckets.$bucket_name.users[]" buckets.yml)
-              for user in $users; do
-                echo "Granting access for $user..."
-                user_principal_id=$(aws identitystore list-users --identity-store-id "$IDENTITY_STORE_ID" | jq -r --arg user "$user" '.Users[] | select(.UserName == $user) | .UserId')
-                if [ -n "$user_principal_id" ]; then
-                    aws sso-admin create-account-assignment \
-                        --instance-arn "$SSO_INSTANCE_ARN" \
-                        --target-id "$ACCOUNT_ID" \
-                        --target-type AWS_ACCOUNT \
-                        --permission-set-arn "$AWS_PERMISSION_SET_ARN" \
-                        --principal-type USER \
-                        --principal-id "$user_principal_id"
-                else
-                    echo "User $user not found in identity store."
-                fi
               done
-            done
 
       - name: Display website URL and upload instructions
         if: ${{ steps.changes.outputs.added != '' }}
