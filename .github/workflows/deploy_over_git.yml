@@ -47,7 +47,6 @@ jobs:
           done
 
       - name: Setup aws auth for granting access
-        if: ${{ steps.changes.outputs.added != '' }}
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region: eu-central-1
