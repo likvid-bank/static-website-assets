@@ -70,7 +70,7 @@ jobs:
             # Try to create the permission set
             AWS_PERMISSION_SET_ARN=$(aws sso-admin create-permission-set \
               --instance-arn ${{ env.SSO_INSTANCE_ARN }} \
-              --name "$permission_set_name" 2> /dev/null || true)
+              --name "$permission_set_name" | jq -r '.PermissionSet.PermissionSetArn' )
             echo "AWS_PERMISSION_SET_ARN after create-permission-set: $AWS_PERMISSION_SET_ARN"
 
             # If the permission set creation failed (because it already exists), get the existing permission set
