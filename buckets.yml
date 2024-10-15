@@ -1,0 +1,10 @@
+buckets:
+  superwebsiteone:
+    users:
+      - ckraus@meshcloud.io 
+      - fnowarre@meshcloud.io
+  superwebsitetwo:
+    users:
+      - ckraus@meshcloud.io
+      - fnowarre@meshcloud.io
+
