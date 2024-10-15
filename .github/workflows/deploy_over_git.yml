@@ -37,8 +37,8 @@ jobs:
       - name: Deploy buckets
         id: deploy
         run: |
-          mapfile -t bucket_names < <(yq e '.buckets | keys' buckets.yml)
-          for bucket_name in "${bucket_names[@]}"; do
+          bucket_names=$(yq e '.buckets | keys[]' buckets.yml)
+          for bucket_name in $bucket_names; do
             echo "Deploying bucket: $bucket_name"
             aws cloudformation deploy \
               --stack-name "s3-$bucket_name" \
