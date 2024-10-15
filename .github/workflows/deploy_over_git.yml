@@ -67,10 +67,10 @@ jobs:
                 --instance-arn ${{ env.SSO_INSTANCE_ARN }} \
                 --name "$permission_set_name" | jq -r '.PermissionSet.PermissionSetArn' )
 
-                aws sso-admin put-inline-policy-to-permission-set \
-                  --instance-arn ${{ env.SSO_INSTANCE_ARN }} \
-                  --permission-set-arn $AWS_PERMISSION_SET_ARN \
-                  --inline-policy '{
+              aws sso-admin put-inline-policy-to-permission-set \
+                --instance-arn ${{ env.SSO_INSTANCE_ARN }} \
+                --permission-set-arn $AWS_PERMISSION_SET_ARN \
+                --inline-policy '{
                       "Version": "2012-10-17",
                       "Statement": [
                           {
