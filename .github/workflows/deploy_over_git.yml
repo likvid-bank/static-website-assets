@@ -56,7 +56,7 @@ jobs:
       
       - name: Grant Access to buckets
         run: |
-          set -o errexit
+          #set -o errexit
           set -o errtrace
           set -o pipefail
           set -o nounset
