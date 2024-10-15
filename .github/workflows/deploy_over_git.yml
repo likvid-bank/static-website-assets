@@ -24,7 +24,7 @@ jobs:
 
       - name: Install yq
         run: |
-          sudo wget -O /usr/local/bin/yq https://github.com/mikefarah/yq/releases/download/v4.6.1/yq_linux_amd64
+          sudo wget -O /usr/local/bin/yq https://github.com/mikefarah/yq/releases/download/v4.44.3/yq_linux_amd64
           sudo chmod +x /usr/local/bin/yq
 
       - name: Setup aws auth
@@ -37,7 +37,7 @@ jobs:
       - name: Deploy buckets
         id: deploy
         run: |
-          bucket_names=$(yq r buckets.yml 'buckets.*')
+          bucket_names=$(yq e '.buckets | keys' buckets.yml)
           for bucket_name in $bucket_names; do
             echo "Deploying bucket: $bucket_name"
             aws cloudformation deploy \
