@@ -65,30 +65,27 @@ jobs:
               # Try to create the permission set
               AWS_PERMISSION_SET_ARN=$(aws sso-admin create-permission-set \
                 --instance-arn ${{ env.SSO_INSTANCE_ARN }} \
-                --name "$permission_set_name" 2> /dev/null || true)
+                --name "$permission_set_name" | jq -r '.PermissionSet.PermissionSetArn' )
 
-              # Always get the ARN of the permission set
-              AWS_PERMISSION_SET_ARN=$(aws sso-admin list-permission-sets --instance-arn ${{ env.SSO_INSTANCE_ARN }} | jq -r --arg name "$permission_set_name" '.PermissionSets[] | select(. == $name)')
-
-              aws sso-admin put-inline-policy-to-permission-set \
-                --instance-arn ${{ env.SSO_INSTANCE_ARN }} \
-                --permission-set-arn $AWS_PERMISSION_SET_ARN \
-                --inline-policy '{
-                    "Version": "2012-10-17",
-                    "Statement": [
-                        {
-                            "Sid": "AccessBucket",
-                            "Effect": "Allow",
-                            "Action": [
-                                "s3:*"
-                            ],
-                            "Resource": [
-                                "arn:aws:s3:::m25-'$bucket_name'",
-                                "arn:aws:s3:::m25-'$bucket_name'/*"
-                            ]
-                        }
-                    ]
-                }'
+                aws sso-admin put-inline-policy-to-permission-set \
+                  --instance-arn ${{ env.SSO_INSTANCE_ARN }} \
+                  --permission-set-arn $AWS_PERMISSION_SET_ARN \
+                  --inline-policy '{
+                      "Version": "2012-10-17",
+                      "Statement": [
+                          {
+                              "Sid": "AccessBucket",
+                              "Effect": "Allow",
+                              "Action": [
+                                  "s3:*"
+                              ],
+                              "Resource": [
+                                  "arn:aws:s3:::m25-'$bucket_name'",
+                                  "arn:aws:s3:::m25-'$bucket_name'/*"
+                              ]
+                          }
+                      ]
+                  }'
 
               users=$(yq e ".buckets.$bucket_name.users[]" buckets.yml)
               for user in $users; do
