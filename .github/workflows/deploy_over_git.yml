@@ -56,10 +56,6 @@ jobs:
       
       - name: Grant Access to buckets
         run: |
-          set -o errtrace
-          set -o pipefail
-          set -o nounset
-
           IDENTITY_STORE_ID="d-99672cb5d3"
           bucket_names=$(yq e '.buckets | keys | join(" ")' buckets.yml)
           for bucket_name in $bucket_names; do
