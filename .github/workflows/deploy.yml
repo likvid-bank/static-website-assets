@@ -14,7 +14,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-            - name: Setup meshstack auth
+      - name: Setup meshstack auth
         id: setup-meshstack-auth
         uses: meshcloud/actions-register-source@v0.1.0
         with:
