@@ -45,7 +45,16 @@ jobs:
         if: ${{ steps.delete-bucket.outcome == 'success' || steps.delete-bucket.outcome == 'failure' }}
         uses: meshcloud/actions-send-status@v0.0.5
         with:
-          step_id: "create-bucket-stack"
+          step_id: "delete-bucket"
           status: ${{ steps.delete-bucket.outcome == 'success' && 'SUCCEEDED' || 'FAILED' }} 
-          user_message: ${{ steps.delete-bucket.outcome == 'success' && 'Successful create bucket.' || 'Failed create bucket.' }}
-          system_message:  ${{ steps.delete-bucket.outcome == 'success' && 'Successful create bucket.' || 'Failed to create bucket stack, please check the GitHub actions log for more details.' }}
+          user_message: ${{ steps.delete-bucket.outcome == 'success' && 'Successful delete bucket.' || 'Failed delete bucket.' }}
+          system_message:  ${{ steps.delete-bucket.outcome == 'success' && 'Successful delete bucket.' || 'Failed to delete bucket stack, please check the GitHub actions log for more details.' }}
+
+      - name: Send final status
+        if: ${{ always() }}
+        uses: meshcloud/actions-send-status@v0.0.5
+        with:
+          step_id: "final-status"
+          status: ${{ job.status == 'success' && 'SUCCEEDED' || 'FAILED' }}
+          is_final: "true"
+          summary: ${{ job.status == 'success' && 'Bucket Deletion successful' || 'Bucket Deletion failed' }}
