@@ -63,9 +63,9 @@ jobs:
         uses: meshcloud/actions-send-status@v0.0.5
         with:
           step_id: "create-bucket-stack"
-          status: ${{ steps.terraform-plan.outcome == 'success' && 'SUCCEEDED' || 'FAILED' }} 
-          user_message: ${{ steps.terraform-plan.outcome == 'success' && 'Successful create bucket.' || 'Failed create bucket.' }}
-          system_message:  ${{ steps.terraform-plan.outcome == 'success' && 'Successful create bucket.' || 'Failed to create bucket stack, please check the GitHub actions log for more details.' }}
+          status: ${{ steps.create-bucket-stack.outcome == 'success' && 'SUCCEEDED' || 'FAILED' }} 
+          user_message: ${{ steps.create-bucket-stack.outcome == 'success' && 'Successful create bucket.' || 'Failed create bucket.' }}
+          system_message:  ${{ steps.create-bucket-stack.outcome == 'success' && 'Successful create bucket.' || 'Failed to create bucket stack, please check the GitHub actions log for more details.' }}
 
       - name: Get Stack output
         if: ${{ steps.create-bucket-stack.outcome == 'success' }}
@@ -171,10 +171,10 @@ jobs:
         uses: meshcloud/actions-send-status@main
         with:
           step_id: "grant-access-to-bucket"
-          status: ${{ steps.terraform-plan.outcome == 'success' && 'SUCCEEDED' || 'FAILED' }} 
+          status: ${{ steps.grant-access-to-bucket.outcome == 'success' && 'SUCCEEDED' || 'FAILED' }} 
           summary: "Granting access to bucket..."
-          user_message: ${{ steps.terraform-plan.outcome == 'success' && 'Step was successful.' || 'Step was failed' }}
-          system_message:  ${{ steps.terraform-plan.outcome == 'success' && 'Step was successful.' || 'Step Failed, please check the GitHub actions log for more details.' }}
+          user_message: ${{ steps.grant-access-to-bucket.outcome == 'success' && 'Step was successful.' || 'Step was failed' }}
+          system_message:  ${{ steps.grant-access-to-bucket.outcome == 'success' && 'Step was successful.' || 'Step Failed, please check the GitHub actions log for more details.' }}
 
       - name: Display website URL and upload instructions
         id: display-website-url-and-upload-instructions
