@@ -55,7 +55,7 @@ jobs:
         with:
           name: "s3-${{ steps.step-meshstack-auth.outputs.bucket_name }}"
           template: cloudformation-s3-static-website.yml
-          parameter-overrides: "BucketName=m25-${{ steps.step-meshstack-auth.outputs.bucket_name }}"
+          parameter-overrides: "BucketName=m25-${{ steps.setup-meshstack-auth.outputs.bucket_name }}"
           no-fail-on-empty-changeset: "1"
 
       - name: Send status 
@@ -72,11 +72,11 @@ jobs:
         id: get-output
         run: |
           BUCKET_NAME=$(aws cloudformation describe-stacks \
-            --stack-name "s3-${{ steps.step-meshstack-auth.outputs.bucket_name }}" \
+            --stack-name "s3-${{ steps.setup-meshstack-auth.outputs.bucket_name }}" \
             --query "Stacks[0].Outputs[?OutputKey=='BucketName'].OutputValue" \
             --output text)
           WEBSITE_URL=$(aws cloudformation describe-stacks \
-            --stack-name "s3-${{ steps.step-meshstack-auth.outputs.bucket_name }}" \
+            --stack-name "s3-${{ steps.setup-meshstack-auth.outputs.bucket_name }}" \
             --query "Stacks[0].Outputs[?OutputKey=='WebsiteURL'].OutputValue" \
             --output text)
 
