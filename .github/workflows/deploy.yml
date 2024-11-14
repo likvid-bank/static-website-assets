@@ -53,7 +53,7 @@ jobs:
         id: create-bucket-stack
         uses: aws-actions/aws-cloudformation-github-deploy@v1
         with:
-          name: "s3-${{ steps.step-meshstack-auth.outputs.bucket_name }}"
+          name: "s3-${{ steps.setup-meshstack-auth.outputs.bucket_name }}"
           template: cloudformation-s3-static-website.yml
           parameter-overrides: "BucketName=m25-${{ steps.setup-meshstack-auth.outputs.bucket_name }}"
           no-fail-on-empty-changeset: "1"
