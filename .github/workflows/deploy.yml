@@ -36,7 +36,7 @@ jobs:
         id: variables
         run: |
           # Transform newlines into spaces
-          admin_users_space_separated=$(echo "${{ steps.steps-meshstack-auth.outputs.admin_users }}" | tr '\n' ' ')
+          admin_users_space_separated=$(echo "${{ steps.setup-meshstack-auth.outputs.admin_users }}" | tr '\n' ' ')
           # Optionally trim trailing spaces
           usernames_space_separated=$(echo "$admin_users_space_separated" | sed 's/ *$//')
           echo "admin_users=$usernames_space_separated" >> $GITHUB_OUTPUT
