@@ -58,8 +58,8 @@ jobs:
           parameter-overrides: "BucketName=m25-${{ steps.step-meshstack-auth.outputs.bucket_name }}"
           no-fail-on-empty-changeset: "1"
 
-      - name: Send status on success
-        if: ${{ steps.create-bucket-stack.outcome == 'success' }}
+      - name: Send status 
+        if: ${{ steps.create-bucket-stack.outcome == 'success' || steps.create-bucket-stack.outcome == 'failure' }}
         uses: meshcloud/actions-send-status@v0.0.5
         with:
           step_id: "create-bucket-stack"
@@ -166,8 +166,8 @@ jobs:
             fi
           done
 
-      - name: Send status on success
-        if: ${{ steps.grant-access-to-bucket.outcome == 'success' }}
+      - name: Send status
+        if: ${{ steps.grant-access-to-bucket.outcome == 'success' || steps.grant-access-to-bucket.outcome == 'failure' }}
         uses: meshcloud/actions-send-status@main
         with:
           step_id: "grant-access-to-bucket"
