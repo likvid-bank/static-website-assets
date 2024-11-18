@@ -193,7 +193,5 @@ jobs:
         if: ${{ always() }}
         uses: meshcloud/actions-send-status@v0.0.5
         with:
-          step_id: "final-status"
-          status: ${{ job.status == 'success' && 'SUCCEEDED' || 'FAILED' }}
-          is_final: "true"
+          final_status: ${{ job.status == 'success' && 'SUCCEEDED' || 'FAILED' }}
           summary: ${{ job.status == 'success' && 'Bucket Deployment successful' || 'Bucket Deployment failed' }}
