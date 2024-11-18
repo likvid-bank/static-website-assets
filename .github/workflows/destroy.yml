@@ -43,7 +43,7 @@ jobs:
 
       - name: Send status 
         if: ${{ steps.delete-bucket.outcome == 'success' || steps.delete-bucket.outcome == 'failure' }}
-        uses: meshcloud/actions-send-status@v0.0.5
+        uses: meshcloud/actions-send-status@main
         with:
           step_id: "delete-bucket"
           status: ${{ steps.delete-bucket.outcome == 'success' && 'SUCCEEDED' || 'FAILED' }} 
@@ -52,7 +52,7 @@ jobs:
 
       - name: Send final status
         if: ${{ always() }}
-        uses: meshcloud/actions-send-status@v0.0.5
+        uses: meshcloud/actions-send-status@main
         with:
           final_status: ${{ job.status == 'success' && 'SUCCEEDED' || 'FAILED' }}
           summary: ${{ job.status == 'success' && 'Bucket Deployment successful' || 'Bucket Deployment failed' }}
