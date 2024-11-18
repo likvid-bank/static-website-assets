@@ -60,7 +60,7 @@ jobs:
 
       - name: Send status 
         if: ${{ steps.create-bucket-stack.outcome == 'success' || steps.create-bucket-stack.outcome == 'failure' }}
-        uses: meshcloud/actions-send-status@v0.0.5
+        uses: meshcloud/actions-send-status@main
         with:
           step_id: "create-bucket-stack"
           status: ${{ steps.create-bucket-stack.outcome == 'success' && 'SUCCEEDED' || 'FAILED' }} 
@@ -191,7 +191,7 @@ jobs:
 
       - name: Send final status
         if: ${{ always() }}
-        uses: meshcloud/actions-send-status@v0.0.5
+        uses: meshcloud/actions-send-status@main
         with:
           final_status: ${{ job.status == 'success' && 'SUCCEEDED' || 'FAILED' }}
           summary: ${{ job.status == 'success' && 'Bucket Deployment successful' || 'Bucket Deployment failed' }}
