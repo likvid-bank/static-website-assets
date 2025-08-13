@@ -41,7 +41,7 @@ jobs:
           usernames_space_separated=$(echo "$admin_users_space_separated" | sed 's/ *$//')
           echo "admin_users=$usernames_space_separated" >> $GITHUB_OUTPUT
 
-     
+
       - name: Setup aws auth
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -49,7 +49,7 @@ jobs:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
-      - name: Update BB run / create-bucket-stack / in progress 
+      - name: Update BB run / create-bucket-stack / in progress
         uses: meshcloud/actions-send-status@v2
         with:
           step_id: "create-bucket-stack"
@@ -95,7 +95,7 @@ jobs:
           🚀 Once you upload your files, you can view your website at: ${{ steps.get-output.outputs.website_url }} 🚀"
 
           echo "$INSTRUCTIONS" >> $GITHUB_STEP_SUMMARY
-          
+
           outputs_json=$(jq -nc \
             --arg summary "$INSTRUCTIONS" \
             --arg website_url "${{ steps.get-output.outputs.website_url }}" \
@@ -116,7 +116,7 @@ jobs:
         uses: meshcloud/actions-send-status@v2
         with:
           step_id: "create-bucket-stack"
-          step_status: ${{ steps.create-bucket-stack.outcome == 'success' && 'SUCCEEDED' || 'FAILED' }} 
+          step_status: ${{ steps.create-bucket-stack.outcome == 'success' && 'SUCCEEDED' || 'FAILED' }}
           user_message: ${{ steps.create-bucket-stack.outcome == 'success' && 'Successful create bucket.' || 'Failed create bucket.' }}
           system_message:  ${{ steps.create-bucket-stack.outcome == 'success' && 'Successful create bucket.' || 'Failed to create bucket stack, please check the GitHub actions log for more details.' }}
           outputs_json: ${{ steps.create-bucket-stack.outcome == 'success' && steps.prepare-website-instructions.outputs.outputs_json || '{}' }}
@@ -133,7 +133,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region: eu-central-1
-          role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME }}
+          role-to-assume: ${{ var.AWS_ROLE_TO_ASSUME }}
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
@@ -216,7 +216,7 @@ jobs:
         uses: meshcloud/actions-send-status@v2
         with:
           step_id: "grant-access-to-bucket"
-          step_status: ${{ steps.grant-access-to-bucket.outcome == 'success' && 'SUCCEEDED' || 'FAILED' }} 
+          step_status: ${{ steps.grant-access-to-bucket.outcome == 'success' && 'SUCCEEDED' || 'FAILED' }}
           user_message: ${{ steps.grant-access-to-bucket.outcome == 'success' && 'Step was successful.' || 'Step was failed' }}
           system_message:  ${{ steps.grant-access-to-bucket.outcome == 'success' && 'Step was successful.' || 'Step Failed, please check the GitHub actions log for more details.' }}
 
@@ -225,4 +225,3 @@ jobs:
         uses: meshcloud/actions-send-status@v2
         with:
           run_status: ${{ job.status == 'success' && 'SUCCEEDED' || 'FAILED' }}
-          
